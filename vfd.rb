@@ -66,7 +66,7 @@ twitter_client = TwitterClient.new(TERMS,5)
 vfd = Vfd.new(5,30)
 
 tweet_poll_thread = Thread.new do
-  vfd.show_messages twitter_client.pull_new_tweets
+  loop { vfd.show_messages twitter_client.pull_new_tweets }
 end
 
 puts "Press return to exit..."
