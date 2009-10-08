@@ -38,17 +38,46 @@ end
 
 class Vfd
 
+  Nothing = 0x00
+  MoveCursorLeft = 0x08 #backspace
+  MoveCursorRight = 0x09 #tab
+  MoveCursorDown = 0x0A #linefeed
+  MoveCursorToTopLeft = 0x0C #formfeed
+  MoveCursorToLineStart = 0xD #carriage return
+  ClearScreen = 0x0E
+  DisableScroll = 0x11
+  EnableScroll = 0x12
+  CursorOff = 0x14
+  CursorOn = 0x15
+  CursorOff2 = 0x16
+  CursorOff3 = 0x17
+  OtherCharacterSet = 0x19
+  NormalCharacterSet = 0x1A
+
   def initialize(seconds_between_messages = 5, letters_per_second = 5)
     @seconds_between_messages = seconds_between_messages
     @letters_per_second = letters_per_second
+    @serial = SerialPort.new 0, 19200
   end
   
   def show_messages(messages)
     messages.each do |message|
-      message.each_char { |c| print c; STDOUT.flush; sleep(1.0/@letters_per_second) }
+      @serial.write EnableScroll.chr
+      @serial.write MoveCursorToTopLeft.chr
+      @serial.write ClearScreen.chr
+      message.each_char do |c| 
+        print c
+        @serial.write c
+        STDOUT.flush
+        sleep(1.0/@letters_per_second)
+      end
       sleep @seconds_between_messages
       puts
     end
+  end
+
+  def close
+    @serial.close
   end
   
 end
@@ -63,7 +92,7 @@ CONFIG = {'Configuration' => {
 
 
 twitter_client = TwitterClient.new(TERMS,5)
-vfd = Vfd.new(5,30)
+vfd = Vfd.new(5,8)
 
 tweet_poll_thread = Thread.new do
   loop { vfd.show_messages twitter_client.pull_new_tweets }
@@ -71,9 +100,10 @@ end
 
 puts "Press return to exit..."
 gets
+
+vfd.close
+
 tweet_poll_thread.exit
 puts "waiting for thread to join"
 tweet_poll_thread.join
 puts "thread joined"
- 
-
