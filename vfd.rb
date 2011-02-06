@@ -5,6 +5,7 @@ require 'yaml'
 require 'twitter'
 require 'serialport'
 require 'thread'
+require 'twitter_oauth'
 
 class TwitterClient
   
@@ -24,7 +25,7 @@ class TwitterClient
   
   def pull_new_tweets
     puts "Pulling new tweets since #{@last_id}..."
-    new_tweets = Twitter::Search.new(@search_terms).since(@last_id)
+    new_tweets = Twitter::Search.new.containing(@search_terms).since_id(@last_id)
     new_tweets.each do |tweet| 
       add(tweet.text) 
       if tweet.id > @last_id then
@@ -54,10 +55,10 @@ class Vfd
   OtherCharacterSet = 0x19
   NormalCharacterSet = 0x1A
 
-  def initialize(seconds_between_messages = 5, letters_per_second = 5)
+  def initialize(serial_port, seconds_between_messages = 5, letters_per_second = 5)
     @seconds_between_messages = seconds_between_messages
     @letters_per_second = letters_per_second
-    @serial = SerialPort.new 0, 19200
+    @serial = SerialPort.new "#{serial_port}", 19200
   end
   
   def show_messages(messages)
@@ -82,17 +83,64 @@ class Vfd
   
 end
 
-puts "First run, must configurate..."
-puts "Search terms: "
-TERMS = gets.chop
+# Twitter Consumer Key/Secret
+CONSUMER_KEY = "s8tJJJ3gQ853mpqfbDvug"
+CONSUMER_SECRET = "R5goF5PuXOnhOguHRqtCk1fGVixqnfsfCS4np5QZeE"
+
+puts "First run, must configure..."
+puts "Select a search mode: "
+puts "1. Search Terms\n2. User Tweets\n3. Your Twitter Account Feed\n"
+puts "Search Mode (1-3):"
+MODE = gets.chop
+case MODE
+when "1"
+  puts "Enter search terms: "
+  TERMS = gets.chop
+when "2"
+  puts "Enter username: "
+  SEARCHUSER = gets.chop
+when "3"
+  client = TwitterOAuth::Client.new(
+    :consumer_key => CONSUMER_KEY, 
+    :consumer_secret => CONSUMER_SECRET
+  )
+  
+  request_token = client.request_token()
+  
+  %x(open #{request_token.authorize_url})
+  
+  puts "Pin: "
+  pin = gets.chop
+  
+  access_token = client.authorize(
+    request_token.token,
+    request_token.secret,
+    :oauth_verifier => pin
+  )
+  
+  puts client.authorized?
+  
+ 
+  #puts "If web browser wasn't automatically launched, use this URL to get your pin #{oauth.request_token.authorize_url}"
+  #puts "Enter pin"
+  #pin = gets.chop
+  #oauth.authorize_from_request(oauth.request_token.token, oauth.request_token.secret, pin)
+  #output = File.new('config.yml', 'w')
+  #output.puts YAML.dump(oauth.access_token.token,oauth.access_token.secret)
+end
+puts "Serial port (ie. /dev/ttyS0 or COM1): "
+SERIALPORT = gets.chop
 CONFIG = {'Configuration' => {
-  'Search Terms' => TERMS,
-  'Tweet Count' => 10
-  }}
+  'Serial Port' => SERIALPORT,
+  'Tweet Count' => 10,
+  'Search Terms' => TERMS
+}}
+  
+  
 
 
 twitter_client = TwitterClient.new(TERMS,5)
-vfd = Vfd.new(5,8)
+vfd = Vfd.new(SERIALPORT,5,8)
 
 tweet_poll_thread = Thread.new do
   loop { vfd.show_messages twitter_client.pull_new_tweets }
